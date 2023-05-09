@@ -39,7 +39,7 @@ module bht #(
     logic latest_taken;
 
     // gshare to find indices for next prediction and next update
-    assign latest_taken = bht_update_i.taken;
+    assign latest_taken = bht_update_i.taken ? 1'b1 : 0'b1;
     assign update_index = ghr ^ bht_update_i.pc[INDEX_BITS - 1:0];
     assign pred_index = ghr ^ vpc_i[INDEX_BITS - 1:0];
 
