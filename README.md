@@ -1,27 +1,3 @@
-![Build Status](https://github.com/openhwgroup/cva6/actions/workflows/ci.yml/badge.svg?branch=master)
-
-# CVA6 RISC-V CPU
-
-CVA6 is a 6-stage, single issue, in-order CPU which implements the 64-bit RISC-V instruction set. It fully implements I, M, A and C extensions as specified in Volume I: User-Level ISA V 2.3 as well as the draft privilege extension 1.10. It implements three privilege levels M, S, U to fully support a Unix-like operating system. Furthermore it is compliant to the draft external debug spec 0.13.
-
-It has configurable size, separate TLBs, a hardware PTW and branch-prediction (branch target buffer and branch history table). The primary design goal was on reducing critical path length.
-
-![](docs/01_cva6_user/_static/ariane_overview.png)
-
-## Directory Structure:
-The directory structure separates the [CVA6 RISC-V CPU](#cva6-risc-v-cpu) core from the [CORE-V-APU FPGA Emulation Platform](#corev-apu-fpga-emulation).
-Files, directories and submodules under `cva6` are for the core _only_ and should not have any dependencies on the APU.
-Files, directories and submodules under `corev_apu` are for the FPGA Emulation platform.
-The CVA6 core can be compiled stand-alone, and obviously the APU is dependent on the core.
-
-The top-level directories of this repo:
-* **ci**: Scriptware for CI.
-* **common**: Source code used by both the CVA6 Core and the COREV APU. Subdirectories from here are `local` for common files that are hosted in this repo and `submodules` that are hosted in other repos.
-* **core**: Source code for the CVA6 Core only. There should be no sources in this directory used to build anything other than the CVA6 core.
-* **corev_apu**: Source code for the CVA6 APU, exclusive of the CVA6 core. There should be no sources in this directory used to build the CVA6 core.
-* **docs**: Documentation.
-* **scripts**: General scriptware.
-
 ## Verification
 The verification environment for the CVA6 is _not_ in this Repository.
 
