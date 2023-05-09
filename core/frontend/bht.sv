@@ -24,83 +24,67 @@ module bht #(
     input  logic [riscv::VLEN-1:0]      vpc_i,
     input  ariane_pkg::bht_update_t     bht_update_i,
     // we potentially need INSTR_PER_FETCH predictions/cycle
-    output ariane_pkg::bht_prediction_t [ariane_pkg::INSTR_PER_FETCH-1:0] bht_prediction_o
+    output ariane_pkg::bht_prediction_t bht_prediction_o
 );
-    // the last bit is always zero, we don't need it for indexing
-    localparam OFFSET = ariane_pkg::RVC == 1'b1 ? 1 : 2;
-    // re-shape the branch history table
-    localparam NR_ROWS = NR_ENTRIES / ariane_pkg::INSTR_PER_FETCH;
-    // number of bits needed to index the row
-    localparam ROW_ADDR_BITS = $clog2(ariane_pkg::INSTR_PER_FETCH);
-    localparam ROW_INDEX_BITS = ariane_pkg::RVC == 1'b1 ? $clog2(ariane_pkg::INSTR_PER_FETCH) : 1;   // 1    1
-    // number of bits we should use for prediction
-    localparam PREDICTION_BITS = $clog2(NR_ROWS) + OFFSET + ROW_ADDR_BITS;
-    // we are not interested in all bits of the address
-    unread i_unread (.d_i(|vpc_i));
+    localparam INDEX_BITS = $clog2(NR_ENTRIES);
 
     struct packed {
         logic       valid;
         logic [1:0] saturation_counter;
-    } bht_d[NR_ROWS-1:0][ariane_pkg::INSTR_PER_FETCH-1:0], bht_q[NR_ROWS-1:0][ariane_pkg::INSTR_PER_FETCH-1:0];
+    } bht_d[NR_ENTRIES-1:0], bht_q[NR_ENTRIES-1:0];
 
-    logic [$clog2(NR_ROWS)-1:0]  index, update_pc;
-    logic [ROW_INDEX_BITS-1:0]    update_row_index;
-    logic [1:0]                  saturation_counter;
+    logic [INDEX_BITS-1:0]  pred_index, update_index;
+    logic [1:0]             curr_saturation_counter;
+    logic [INDEX_BITS-1:0]  ghr;
+    logic latest_taken;
 
-    assign index     = vpc_i[PREDICTION_BITS - 1:ROW_ADDR_BITS + OFFSET];
-    assign update_pc = bht_update_i.pc[PREDICTION_BITS - 1:ROW_ADDR_BITS + OFFSET];
-    if (ariane_pkg::RVC) begin : gen_update_row_index
-      assign update_row_index = bht_update_i.pc[ROW_ADDR_BITS + OFFSET - 1:OFFSET];
-    end else begin
-      assign update_row_index = '0;
-    end
+    // gshare to find indices for next prediction and next update
+    assign latest_taken = bht_update_i.taken;
+    assign update_index = ghr ^ bht_update_i.pc[INDEX_BITS - 1:0];
+    assign pred_index = ghr ^ vpc_i[INDEX_BITS - 1:0];
 
     // prediction assignment
-    for (genvar i = 0; i < ariane_pkg::INSTR_PER_FETCH; i++) begin : gen_bht_output
-        assign bht_prediction_o[i].valid = bht_q[index][i].valid;
-        assign bht_prediction_o[i].taken = bht_q[index][i].saturation_counter[1] == 1'b1;
-    end
+    assign bht_prediction_o.valid = bht_q[pred_index].valid;
+    assign bht_prediction_o.taken = bht_q[pred_index].saturation_counter[1] == 1'b1;
 
     always_comb begin : update_bht
         bht_d = bht_q;
-        saturation_counter = bht_q[update_pc][update_row_index].saturation_counter;
+        ghr = {ghr[INDEX_BITS-2:0], latest_taken};
+        curr_saturation_counter = bht_q[update_index].saturation_counter;
 
         if (bht_update_i.valid && !debug_mode_i) begin
-            bht_d[update_pc][update_row_index].valid = 1'b1;
-
-            if (saturation_counter == 2'b11) begin
-                // we can safely decrease it
+            bht_d[update_index].valid = 1'b1;
+            if (curr_saturation_counter == 2'b11) begin
                 if (!bht_update_i.taken)
-                    bht_d[update_pc][update_row_index].saturation_counter = saturation_counter - 1;
-            // then check if it saturated in the negative regime e.g.: branch not taken
-            end else if (saturation_counter == 2'b00) begin
-                // we can safely increase it
+                    bht_d[update_index].saturation_counter = curr_saturation_counter - 1;
+            end else if (curr_saturation_counter == 2'b00) begin
                 if (bht_update_i.taken)
-                    bht_d[update_pc][update_row_index].saturation_counter = saturation_counter + 1;
-            end else begin // otherwise we are not in any boundaries and can decrease or increase it
+                    bht_d[update_index].saturation_counter = curr_saturation_counter + 1;
+            end else begin
                 if (bht_update_i.taken)
-                    bht_d[update_pc][update_row_index].saturation_counter = saturation_counter + 1;
+                    bht_d[update_index].saturation_counter = curr_saturation_counter + 1;
                 else
-                    bht_d[update_pc][update_row_index].saturation_counter = saturation_counter - 1;
+                    bht_d[update_index].saturation_counter = curr_saturation_counter - 1;
             end
         end
     end
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
-            for (int unsigned i = 0; i < NR_ROWS; i++) begin
-                for (int j = 0; j < ariane_pkg::INSTR_PER_FETCH; j++) begin
-                    bht_q[i][j] <= '0;
-                end
+            for (int unsigned i = 0; i < NR_ENTRIES; i++) begin               
+                bht_q[i] <= '0;
+            end
+            for (int unsigned i = 0; i < INDEX_BITS; i++) begin
+                ghr[i] <= '0;
             end
         end else begin
-            // evict all entries
             if (flush_i) begin
-                for (int i = 0; i < NR_ROWS; i++) begin
-                    for (int j = 0; j < ariane_pkg::INSTR_PER_FETCH; j++) begin
-                        bht_q[i][j].valid <=  1'b0;
-                        bht_q[i][j].saturation_counter <= 2'b10;
-                    end
+                for (int i = 0; i < NR_ENTRIES; i++) begin
+                    bht_q[i].valid <=  1'b0;
+                    bht_q[i].saturation_counter <= 2'b10;
+                end
+                for (int unsigned i = 0; i < INDEX_BITS; i++) begin
+                    ghr[i] <= '0;
                 end
             end else begin
                 bht_q <= bht_d;
