@@ -35,12 +35,12 @@ module bht #(
 
     logic [INDEX_BITS-1:0]  pred_index, update_index;
     logic [1:0]             curr_saturation_counter;
-    logic [INDEX_BITS-1:0]  ghr;
+    logic [INDEX_BITS-1:0]  ghr_q, ghr_d;
     logic latest_taken;
 
-    // gshare to find indices for next prediction and next update
-    assign update_index = ghr ^ bht_update_i.pc[INDEX_BITS - 1:0];
-    assign pred_index = ghr ^ vpc_i[INDEX_BITS - 1:0];
+    // gshare to find indices for next prediction
+    assign update_index = ghr_q ^ bht_update_i.pc[INDEX_BITS - 1:0];
+    assign pred_index = ghr_q ^ vpc_i[INDEX_BITS - 1:0];
 
     // prediction assignment
     assign bht_prediction_o.valid = bht_q[pred_index].valid;
@@ -49,12 +49,13 @@ module bht #(
     always_comb begin : update_bht
         bht_d = bht_q;
         curr_saturation_counter = bht_q[update_index].saturation_counter;
+        ghr_d = ghr_q;
 
         if (bht_update_i.valid && !debug_mode_i) begin
             for (int unsigned i = 1; i < INDEX_BITS; i++) begin
-                ghr[i] = ghr[i - 1];
+                ghr_d[i] = ghr_q[i - 1];
             end
-            ghr[0] = bht_update_i.taken;
+            ghr_d[0] = bht_update_i.taken;
 
             bht_d[update_index].valid = 1'b1;
             if (curr_saturation_counter == 2'b11) begin
@@ -78,7 +79,7 @@ module bht #(
                 bht_q[i] <= '0;
             end
             for (int unsigned i = 0; i < INDEX_BITS; i++) begin
-                ghr[i] <= '0;
+                ghr_q[i] <= '0;
             end
         end else begin
             if (flush_i) begin
@@ -87,10 +88,11 @@ module bht #(
                     bht_q[i].saturation_counter <= 2'b10;
                 end
                 for (int unsigned i = 0; i < INDEX_BITS; i++) begin
-                    ghr[i] <= '0;
+                    ghr_q[i] <= '0;
                 end
             end else begin
                 bht_q <= bht_d;
+                ghr_q <= ghr_d;
             end
         end
     end
