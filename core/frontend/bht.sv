@@ -39,7 +39,6 @@ module bht #(
     logic latest_taken;
 
     // gshare to find indices for next prediction and next update
-    assign latest_taken = bht_update_i.taken ? 1'b1 : 0'b1;
     assign update_index = ghr ^ bht_update_i.pc[INDEX_BITS - 1:0];
     assign pred_index = ghr ^ vpc_i[INDEX_BITS - 1:0];
 
@@ -51,10 +50,10 @@ module bht #(
         bht_d = bht_q;
         curr_saturation_counter = bht_q[update_index].saturation_counter;
 
-        for (int unsigned i = 0; i < INDEX_BITS-1; i++) begin
-                ghr[i] = ghr[i + 1];
+        for (int unsigned i = 1; i < INDEX_BITS; i++) begin
+                ghr[i] = ghr[i - 1];
         end
-        ghr[INDEX_BITS-1] = latest_taken;
+        ghr[0] = bht_update_i.taken;
 
         if (bht_update_i.valid && !debug_mode_i) begin
             bht_d[update_index].valid = 1'b1;
