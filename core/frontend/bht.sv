@@ -49,8 +49,12 @@ module bht #(
 
     always_comb begin : update_bht
         bht_d = bht_q;
-        ghr = {ghr[INDEX_BITS-2:0], latest_taken};
         curr_saturation_counter = bht_q[update_index].saturation_counter;
+
+        for (int unsigned i = 0; i < INDEX_BITS-1; i++) begin
+                ghr[i] = ghr[i + 1];
+        end
+        ghr[INDEX_BITS-1] = latest_taken;
 
         if (bht_update_i.valid && !debug_mode_i) begin
             bht_d[update_index].valid = 1'b1;
