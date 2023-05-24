@@ -140,7 +140,8 @@ ${CVA6_REPO_DIR}/core/cache_subsystem/wt_dcache_mem.sv
 ${CVA6_REPO_DIR}/core/cache_subsystem/wt_dcache_missunit.sv
 ${CVA6_REPO_DIR}/core/cache_subsystem/wt_dcache_wbuffer.sv
 ${CVA6_REPO_DIR}/core/cache_subsystem/wt_dcache.sv
-${CVA6_REPO_DIR}/core/cache_subsystem/cva6_icache.sv
+${CVA6_REPO_DIR}/core/cache_subsystem/ucsbece154b_icache.sv
+${CVA6_REPO_DIR}/core/cache_subsystem/ucsbece154b_victim_cache.sv
 ${CVA6_REPO_DIR}/core/cache_subsystem/wt_cache_subsystem.sv
 ${CVA6_REPO_DIR}/core/cache_subsystem/wt_axi_adapter.sv
 
